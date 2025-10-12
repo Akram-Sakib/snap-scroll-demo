@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, useInView } from "framer-motion";
 
 interface Section {
   id: string;
@@ -55,41 +56,43 @@ const sections: Section[] = [
   },
 ];
 
+// Component to track individual section visibility using Framer Motion
+const SectionTracker = ({
+  children,
+  index,
+  onInView,
+  isScrollingProgrammatically,
+}: {
+  children: React.ReactNode;
+  index: number;
+  onInView: (index: number) => void;
+  isScrollingProgrammatically: boolean;
+}) => {
+  const ref = useRef(null);
+  const isInView = useInView(ref, {
+    margin: "-80px 0px 0px 0px", // Account for sticky header
+    amount: 0.1, // Trigger when 10% is visible
+  });
+
+  useEffect(() => {
+    // Only update active section if we're not programmatically scrolling
+    if (isInView && !isScrollingProgrammatically) {
+      onInView(index);
+    }
+  }, [isInView, index, onInView, isScrollingProgrammatically]);
+
+  return <div ref={ref}>{children}</div>;
+};
+
 const AnimationsPage = () => {
   const [activeSection, setActiveSection] = useState(0);
+  const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Intersection Observer to track active section
-  useEffect(() => {
-    const options = {
-      root: containerRef.current,
-      threshold: [0, 0.1, 0.25, 0.5, 0.75, 1.0], // Multiple thresholds for variable-length sections
-      rootMargin: "-80px 0px 0px 0px", // Account for sticky header
-    };
-
-    observerRef.current = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && entry.intersectionRatio > 0.1) {
-          const index = sections.findIndex(
-            (section) => section.id === entry.target.id
-          );
-          if (index !== -1) {
-            setActiveSection(index);
-          }
-        }
-      });
-    }, options);
-
-    // Observe all sections
-    const sectionElements = document.querySelectorAll("[data-section]");
-    sectionElements.forEach((section) => {
-      observerRef.current?.observe(section);
-    });
-
-    return () => {
-      observerRef.current?.disconnect();
-    };
+  // Handle section visibility changes from Framer Motion
+  const handleSectionInView = useCallback((index: number) => {
+    setActiveSection(index);
   }, []);
 
   // Keyboard navigation
@@ -129,9 +132,35 @@ const AnimationsPage = () => {
   }, [activeSection]);
 
   const scrollToSection = (index: number) => {
+    // Set flag to prevent view tracking interference during programmatic scroll
+    setIsProgrammaticScroll(true);
+    
+    // Clear any existing timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // Immediately update the active section
+    setActiveSection(index);
+    
+    // Perform the scroll
     const section = document.getElementById(sections[index].id);
     section?.scrollIntoView({ behavior: "smooth" });
+    
+    // Reset flag after animation completes (smooth scroll typically takes ~500-1000ms)
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsProgrammaticScroll(false);
+    }, 1000);
   };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="relative h-screen w-full overflow-hidden">
@@ -161,117 +190,123 @@ const AnimationsPage = () => {
 
         {/* Sections */}
         {sections.map((section, index) => (
-          <section
+          <SectionTracker
             key={section.id}
-            id={section.id}
-            data-section
-            className={`min-h-screen w-full snap-start scroll-mt-20 flex items-center justify-center bg-gradient-to-br ${section.bgGradient} ${
-              section.id === "section-4" ? "py-20" : ""
-            }`}
-            aria-label={`Section ${index + 1}: ${section.title}`}
+            index={index}
+            onInView={handleSectionInView}
+            isScrollingProgrammatically={isProgrammaticScroll}
           >
-            <div className="text-center px-8 max-w-4xl">
-              <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 drop-shadow-lg">
-                {section.title}
-              </h1>
-              <p className="text-xl md:text-2xl text-white/90 mb-8 drop-shadow">
-                {section.description}
-              </p>
-              
-              {/* Long content section */}
-              {section.id === "section-4" && (
-                <div className="mt-12 space-y-6 text-white/80 max-w-3xl mx-auto">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-left">
-                    <h3 className="text-2xl font-semibold mb-4 text-white">
-                      Handling Variable-Length Sections
-                    </h3>
-                    <p className="mb-4">
-                      When building snap scrolling interfaces, it's crucial to
-                      handle sections of different lengths gracefully. This
-                      section demonstrates how the implementation works with
-                      longer content.
-                    </p>
-                    <ul className="list-disc list-inside space-y-2">
-                      <li>
-                        <strong>No snap-always:</strong> Removed forced
-                        snapping to allow natural scrolling within long
-                        sections
-                      </li>
-                      <li>
-                        <strong>Multiple thresholds:</strong> Intersection
-                        Observer uses multiple thresholds to handle varying
-                        section heights
-                      </li>
-                      <li>
-                        <strong>scroll-margin-top:</strong> Added to account
-                        for the sticky header height
-                      </li>
-                      <li>
-                        <strong>snap-proximity:</strong> Provides a balanced
-                        experience between snapping and free scrolling
-                      </li>
-                    </ul>
-                  </div>
+            <section
+              id={section.id}
+              data-section
+              className={`min-h-screen w-full snap-start scroll-mt-20 flex items-center justify-center bg-gradient-to-br ${section.bgGradient} ${
+                section.id === "section-4" ? "py-20" : ""
+              }`}
+              aria-label={`Section ${index + 1}: ${section.title}`}
+            >
+              <div className="text-center px-8 max-w-4xl">
+                <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 drop-shadow-lg">
+                  {section.title}
+                </h1>
+                <p className="text-xl md:text-2xl text-white/90 mb-8 drop-shadow">
+                  {section.description}
+                </p>
+                
+                {/* Long content section */}
+                {section.id === "section-4" && (
+                  <div className="mt-12 space-y-6 text-white/80 max-w-3xl mx-auto">
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-left">
+                      <h3 className="text-2xl font-semibold mb-4 text-white">
+                        Handling Variable-Length Sections
+                      </h3>
+                      <p className="mb-4">
+                        When building snap scrolling interfaces, it's crucial to
+                        handle sections of different lengths gracefully. This
+                        section demonstrates how the implementation works with
+                        longer content.
+                      </p>
+                      <ul className="list-disc list-inside space-y-2">
+                        <li>
+                          <strong>No snap-always:</strong> Removed forced
+                          snapping to allow natural scrolling within long
+                          sections
+                        </li>
+                        <li>
+                          <strong>Framer Motion useInView:</strong> Now using
+                          Framer Motion's useInView hook instead of manual
+                          Intersection Observer
+                        </li>
+                        <li>
+                          <strong>scroll-margin-top:</strong> Added to account
+                          for the sticky header height
+                        </li>
+                        <li>
+                          <strong>snap-proximity:</strong> Provides a balanced
+                          experience between snapping and free scrolling
+                        </li>
+                      </ul>
+                    </div>
 
-                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-left">
-                    <h3 className="text-2xl font-semibold mb-4 text-white">
-                      Best Practices
-                    </h3>
-                    <p className="mb-4">
-                      Here are some key considerations when implementing snap
-                      scrolling with variable content:
-                    </p>
-                    <ol className="list-decimal list-inside space-y-3">
-                      <li>
-                        Use <code className="bg-black/30 px-2 py-1 rounded">min-h-screen</code> as
-                        a baseline, but allow sections to grow naturally
-                      </li>
-                      <li>
-                        Test with both short and long content to ensure smooth
-                        behavior
-                      </li>
-                      <li>
-                        Consider mobile viewports where "long" is relative to
-                        screen size
-                      </li>
-                      <li>
-                        Provide keyboard navigation as an accessible
-                        alternative
-                      </li>
-                      <li>
-                        Use visual indicators (like the dots on the right) to
-                        show progress
-                      </li>
-                    </ol>
-                  </div>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-left">
+                      <h3 className="text-2xl font-semibold mb-4 text-white">
+                        Best Practices
+                      </h3>
+                      <p className="mb-4">
+                        Here are some key considerations when implementing snap
+                        scrolling with variable content:
+                      </p>
+                      <ol className="list-decimal list-inside space-y-3">
+                        <li>
+                          Use <code className="bg-black/30 px-2 py-1 rounded">min-h-screen</code> as
+                          a baseline, but allow sections to grow naturally
+                        </li>
+                        <li>
+                          Test with both short and long content to ensure smooth
+                          behavior
+                        </li>
+                        <li>
+                          Consider mobile viewports where "long" is relative to
+                          screen size
+                        </li>
+                        <li>
+                          Provide keyboard navigation as an accessible
+                          alternative
+                        </li>
+                        <li>
+                          Use visual indicators (like the dots on the right) to
+                          show progress
+                        </li>
+                      </ol>
+                    </div>
 
-                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-left">
-                    <h3 className="text-2xl font-semibold mb-4 text-white">
-                      User Experience
-                    </h3>
-                    <p className="mb-4">
-                      The goal is to provide a delightful scrolling experience
-                      that feels natural and intuitive. Users should be able to:
-                    </p>
-                    <ul className="list-disc list-inside space-y-2">
-                      <li>Scroll freely within long sections</li>
-                      <li>Experience smooth transitions between sections</li>
-                      <li>Navigate using keyboard, mouse, or touch</li>
-                      <li>Always know where they are in the content flow</li>
-                    </ul>
-                    <p className="mt-4 italic">
-                      Try scrolling down within this section - notice how it
-                      doesn't force you to the next section until you're ready!
-                    </p>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-left">
+                      <h3 className="text-2xl font-semibold mb-4 text-white">
+                        User Experience
+                      </h3>
+                      <p className="mb-4">
+                        The goal is to provide a delightful scrolling experience
+                        that feels natural and intuitive. Users should be able to:
+                      </p>
+                      <ul className="list-disc list-inside space-y-2">
+                        <li>Scroll freely within long sections</li>
+                        <li>Experience smooth transitions between sections</li>
+                        <li>Navigate using keyboard, mouse, or touch</li>
+                        <li>Always know where they are in the content flow</li>
+                      </ul>
+                      <p className="mt-4 italic">
+                        Try scrolling down within this section - notice how it
+                        doesn't force you to the next section until you're ready!
+                      </p>
+                    </div>
                   </div>
+                )}
+                
+                <div className="text-white/70 text-sm mt-8">
+                  Section {index + 1} of {sections.length}
                 </div>
-              )}
-              
-              <div className="text-white/70 text-sm mt-8">
-                Section {index + 1} of {sections.length}
               </div>
-            </div>
-          </section>
+            </section>
+          </SectionTracker>
         ))}
 
         {/* Normal Footer (at the end of content) */}
