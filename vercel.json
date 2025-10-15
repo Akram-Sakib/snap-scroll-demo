@@ -15,10 +15,5 @@
   "env": {
     "NODE_ENV": "production"
   },
-  "functions": {
-    "package.json": {
-      "maxDuration": 10
-    }
-  },
   "regions": ["iad1"]
 }
