@@ -38,7 +38,7 @@ export const SectionContent = ({
                 Handling Variable-Length Sections
               </h3>
               <p className="mb-4">
-                When building snap scrolling interfaces, it's crucial to
+                When building snap scrolling interfaces, it&apos;s crucial to
                 handle sections of different lengths gracefully. This
                 section demonstrates how the implementation works with
                 longer content.
@@ -51,7 +51,7 @@ export const SectionContent = ({
                 </li>
                 <li>
                   <strong>Framer Motion useInView:</strong> Now using
-                  Framer Motion's useInView hook instead of manual
+                  Framer Motion&apos;s useInView hook instead of manual
                   Intersection Observer
                 </li>
                 <li>
@@ -83,7 +83,7 @@ export const SectionContent = ({
                   behavior
                 </li>
                 <li>
-                  Consider mobile viewports where "long" is relative to
+                  Consider mobile viewports where &ldquo;long&rdquo; is relative to
                   screen size
                 </li>
                 <li>
@@ -113,7 +113,7 @@ export const SectionContent = ({
               </ul>
               <p className="mt-4 italic">
                 Try scrolling down within this section - notice how it
-                doesn't force you to the next section until you're ready!
+                doesn&apos;t force you to the next section until you&apos;re ready!
               </p>
             </div>
           </div>
