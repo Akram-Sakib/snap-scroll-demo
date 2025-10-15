@@ -1,0 +1,2 @@
+export { useSnapScrolling } from "./useSnapScrolling";
+
