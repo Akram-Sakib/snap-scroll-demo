@@ -1,9 +1,66 @@
 "use client";
 
+import {
+  sections,
+  SectionTracker,
+  SectionContent,
+  Header,
+  Footer,
+  NavigationDots,
+} from "./animations/components";
+import { useSnapScrolling } from "./animations/hooks";
+
 export default function HomePage() {
+  const {
+    activeSection,
+    isProgrammaticScroll,
+    containerRef,
+    handleSectionInView,
+    scrollToSection,
+  } = useSnapScrolling();
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-      <h2 className="h-full">Hello World</h2>
+    <div className="relative h-screen w-full overflow-hidden">
+      {/* Main scroll container with snap */}
+      <div
+        ref={containerRef}
+        className="h-full w-full overflow-y-scroll snap-y snap-mandatory scroll-smooth"
+        role="region"
+        aria-label="Snap scrolling demo sections"
+      >
+        {/* Sticky Header */}
+        <Header activeSection={activeSection} totalSections={sections.length} />
+
+        {/* Sections */}
+        {sections.map((section, index) => (
+          <SectionTracker
+            key={section.id}
+            index={index}
+            onInView={handleSectionInView}
+            isScrollingProgrammatically={isProgrammaticScroll}
+          >
+            <SectionContent
+              section={section}
+              index={index}
+              totalSections={sections.length}
+            />
+          </SectionTracker>
+        ))}
+
+        {/* Footer */}
+        <Footer
+          activeSection={activeSection}
+          totalSections={sections.length}
+          onNavigate={scrollToSection}
+        />
+      </div>
+
+      {/* Navigation dots indicator */}
+      <NavigationDots
+        sections={sections}
+        activeSection={activeSection}
+        onNavigate={scrollToSection}
+      />
     </div>
   );
 }
